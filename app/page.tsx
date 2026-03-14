@@ -384,67 +384,82 @@ function MonthlyBillCard({
           {bill.dueHint ? <span>({bill.dueHint})</span> : null}
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.7fr_0.7fr_0.8fr]">
-          <div>
-            <label className="text-xs font-medium text-slate-500">Bill name</label>
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-medium"
-              value={bill.name}
-              onChange={(e) => onUpdate(bill.id, { name: e.target.value })}
-            />
-            <textarea
-              className="mt-3 min-h-[72px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              placeholder="Extra note"
-              value={bill.note || ""}
-              onChange={(e) => onUpdate(bill.id, { note: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-slate-500">Full amount</label>
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-              type="number"
-              step="0.01"
-              value={bill.amount}
-              onChange={(e) => onUpdate(bill.id, { amount: Number(e.target.value) || 0 })}
-            />
-            <p className="mt-3 text-sm font-medium">{currency(bill.amount)}</p>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-slate-500">Per-check amount</label>
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-              type="number"
-              step="0.01"
-              value={bill.perPaycheckMode === "custom" ? bill.customPerPaycheck || 0 : getPerPaycheckAmount(bill)}
-              onChange={(e) => onUpdate(bill.id, { perPaycheckMode: "custom", customPerPaycheck: Number(e.target.value) || 0 })}
-            />
-            <p className="mt-3 text-sm font-medium">{currency(getPerPaycheckAmount(bill))}</p>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-slate-500">Date paid / confirmed</label>
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-              value={bill.lastPaid || ""}
-              onChange={(e) => onUpdate(bill.id, { lastPaid: e.target.value })}
-              placeholder="Paid full 3/13"
-            />
-            <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-xs font-medium ${statusClass(bill.status)}`}>
-              {labelForStatus(bill.status)}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-3 text-base leading-relaxed">
-          <span className="font-medium">{bill.name}:</span> {currency(bill.amount)}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-lg leading-relaxed">
+          <span className="font-medium">{bill.name}:</span>
+          <span className="mx-2">{currency(bill.amount)}</span>
           <span className="mx-2">→</span>
           <span>per check: {currency(getPerPaycheckAmount(bill))}</span>
           <span className="mx-2">→</span>
           <span>{bill.lastPaid || labelForStatus(bill.status)}</span>
         </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500">Bill name</span>
+              <input
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                value={bill.name}
+                onChange={(e) => onUpdate(bill.id, { name: e.target.value })}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500">Date paid / confirmed</span>
+              <input
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                value={bill.lastPaid || ""}
+                onChange={(e) => onUpdate(bill.id, { lastPaid: e.target.value })}
+                placeholder="Paid full 3/13"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500">Full amount</span>
+              <input
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                type="number"
+                step="0.01"
+                value={bill.amount}
+                onChange={(e) => onUpdate(bill.id, { amount: Number(e.target.value) || 0 })}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500">Per-check amount</span>
+              <input
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                type="number"
+                step="0.01"
+                value={bill.perPaycheckMode === "custom" ? bill.customPerPaycheck || 0 : getPerPaycheckAmount(bill)}
+                onChange={(e) =>
+                  onUpdate(bill.id, {
+                    perPaycheckMode: "custom",
+                    customPerPaycheck: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </label>
+          </div>
+
+          <div>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500">Extra note</span>
+              <textarea
+                className="mt-2 min-h-[116px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                placeholder="Add details like current credit, skip note, due reminder, or next payment note"
+                value={bill.note || ""}
+                onChange={(e) => onUpdate(bill.id, { note: e.target.value })}
+              />
+            </label>
+          </div>
+        </div>
+
+        {bill.note ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-700">
+            {bill.note}
+          </div>
+        ) : null}
 
         <div className="grid gap-2 md:grid-cols-4">
           <CheckLine label="Paid half" checked={bill.status === "paid_half"} onChange={() => onSetStatus(bill.id, "paid_half")} />
