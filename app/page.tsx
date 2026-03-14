@@ -117,10 +117,10 @@ const STARTER_BILLS: Bill[] = [
 ];
 
 const STORAGE_KEYS = {
-  bills: "billflow_bills_v3",
-  paycheckNet: "billflow_paycheckNet_v3",
-  cbSplit: "billflow_creditBuilderSplit_v3",
-  snap: "billflow_snap_v3",
+  bills: "billflow_bills_v4",
+  paycheckNet: "billflow_paycheckNet_v4",
+  cbSplit: "billflow_creditBuilderSplit_v4",
+  snap: "billflow_snap_v4",
 };
 
 const currency = (value: number) =>
@@ -160,13 +160,20 @@ function labelForStatus(status: PayStatus) {
 function statusClass(status: PayStatus) {
   if (status === "paid_full") return "bg-green-100 text-green-800";
   if (status === "paid_half") return "bg-amber-100 text-amber-800";
-  if (status === "skip") return "bg-slate-200 text-slate-700";
+  if (status === "skip") return "bg-slate-300 text-slate-800";
   return "bg-blue-100 text-blue-800";
+}
+
+function statusDot(status: PayStatus) {
+  if (status === "paid_full") return "🟢";
+  if (status === "paid_half") return "🟡";
+  if (status === "skip") return "⚫";
+  return "⚪";
 }
 
 export default function Page() {
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"monthly" | "manager" | "summary">("monthly");
+  const [tab, setTab] = useState<"next" | "monthly" | "manager" | "summary">("next");
 
   const [paycheckNet, setPaycheckNet] = useState(1367.15);
   const [creditBuilderSplit, setCreditBuilderSplit] = useState(238);
@@ -236,6 +243,11 @@ export default function Page() {
     [bills]
   );
 
+  const nextPaycheckBills = useMemo(
+    () => bills.filter((b) => b.accountType === "checking" && b.status !== "paid_full" && b.status !== "skip"),
+    [bills]
+  );
+
   const checkingAfterSplit = useMemo(
     () => round2(paycheckNet - creditBuilderSplit),
     [paycheckNet, creditBuilderSplit]
@@ -246,9 +258,14 @@ export default function Page() {
     [checkingBills]
   );
 
+  const nextPaycheckTotal = useMemo(
+    () => round2(nextPaycheckBills.reduce((sum, bill) => sum + getPerPaycheckAmount(bill), 0)),
+    [nextPaycheckBills]
+  );
+
   const checkingAfterPlanned = useMemo(
-    () => round2(checkingAfterSplit - checkingPerCheck),
-    [checkingAfterSplit, checkingPerCheck]
+    () => round2(checkingAfterSplit - nextPaycheckTotal),
+    [checkingAfterSplit, nextPaycheckTotal]
   );
 
   const cbMonthly = useMemo(
@@ -280,6 +297,20 @@ export default function Page() {
               ...bill,
               status,
               lastPaid: status === "planned" ? bill.lastPaid : makePaidLabel(status),
+            }
+          : bill
+      )
+    );
+  };
+
+  const quickMarkStatus = (id: string, status: PayStatus) => {
+    setBills((current) =>
+      current.map((bill) =>
+        bill.id === id
+          ? {
+              ...bill,
+              status,
+              lastPaid: makePaidLabel(status),
             }
           : bill
       )
@@ -329,6 +360,16 @@ export default function Page() {
     alert("Changes saved on this device.");
   };
 
+  const startNewPaycheck = () => {
+    if (!window.confirm("Start a new paycheck cycle? This will reset bill statuses to Planned except skipped bills.")) return;
+    setBills((current) =>
+      current.map((bill) => ({
+        ...bill,
+        status: bill.status === "skip" ? "skip" : "planned",
+      }))
+    );
+  };
+
   const resetDevice = () => {
     if (!window.confirm("Reset saved Bill Flow data on this device?")) return;
 
@@ -341,15 +382,11 @@ export default function Page() {
     setPaycheckNet(1367.15);
     setCreditBuilderSplit(238);
     setSnapAmount(1300);
-    setTab("monthly");
+    setTab("next");
   };
 
   if (!loaded) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
-        Loading…
-      </main>
-    );
+    return <main className="min-h-screen bg-slate-50 p-6 text-slate-900">Loading…</main>;
   }
 
   return (
@@ -360,18 +397,24 @@ export default function Page() {
             <div>
               <h1 className="text-3xl font-bold">Bill Flow</h1>
               <p className="mt-2 text-sm text-slate-600">
-                Monthly-bills style view. See everything at once, edit amount and paid date,
-                note Auto Pay vs manual, note Credit Builder vs Checking, and use checkboxes
-                after each paycheck.
+                Monthly-bills style view plus a Next Paycheck planner, tap-to-mark status, and simple split tracking.
               </p>
             </div>
 
-            <button
-              onClick={resetDevice}
-              className="rounded-2xl border border-red-300 px-4 py-2 text-sm font-medium text-red-700"
-            >
-              Reset device data
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={startNewPaycheck}
+                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              >
+                Start new paycheck
+              </button>
+              <button
+                onClick={resetDevice}
+                className="rounded-2xl border border-red-300 px-4 py-2 text-sm font-medium text-red-700"
+              >
+                Reset device data
+              </button>
+            </div>
           </div>
         </section>
 
@@ -388,6 +431,7 @@ export default function Page() {
 
         <div className="flex flex-wrap gap-2">
           {[
+            ["next", "Next Paycheck"],
             ["monthly", "Monthly Bills"],
             ["manager", "Bills Manager"],
             ["summary", "Summary"],
@@ -405,6 +449,82 @@ export default function Page() {
             </button>
           ))}
         </div>
+
+        {tab === "next" && (
+          <section className="space-y-4 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div>
+              <h2 className="text-xl font-semibold">Next Paycheck View</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Shows what still needs attention on the next paycheck.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <ReadCard label="Net paycheck" value={currency(paycheckNet)} />
+              <ReadCard label="Credit Builder" value={currency(creditBuilderSplit)} />
+              <ReadCard label="Checking left after split" value={currency(checkingAfterSplit)} />
+              <ReadCard label="Remaining after planned" value={currency(checkingAfterPlanned)} />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="text-lg font-semibold">Bills this check</h3>
+              <div className="mt-4 space-y-3">
+                {nextPaycheckBills.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                    Nothing planned right now.
+                  </div>
+                ) : (
+                  nextPaycheckBills.map((bill) => (
+                    <div key={bill.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-base font-medium">
+                            {statusDot(bill.status)} {bill.name}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {bill.accountType === "credit_builder" ? "Credit Builder" : "Checking"} • {bill.isAutoPay ? "Auto Pay" : "Manual Pay"}
+                          </div>
+                          {bill.note ? <div className="mt-1 text-sm text-slate-600">{bill.note}</div> : null}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold">{currency(getPerPaycheckAmount(bill))}</div>
+                          <div className="text-sm text-slate-500">this paycheck</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        <button
+                          onClick={() => quickMarkStatus(bill.id, "paid_half")}
+                          className="rounded-xl bg-amber-100 px-3 py-3 text-sm font-medium text-amber-800"
+                        >
+                          Paid half
+                        </button>
+                        <button
+                          onClick={() => quickMarkStatus(bill.id, "paid_full")}
+                          className="rounded-xl bg-green-100 px-3 py-3 text-sm font-medium text-green-800"
+                        >
+                          Paid full
+                        </button>
+                        <button
+                          onClick={() => quickMarkStatus(bill.id, "skip")}
+                          className="rounded-xl bg-slate-200 px-3 py-3 text-sm font-medium text-slate-700"
+                        >
+                          Skip
+                        </button>
+                        <button
+                          onClick={() => updateBill(bill.id, { lastPaid: makePaidLabel(bill.status) || bill.lastPaid })}
+                          className="rounded-xl border border-slate-300 px-3 py-3 text-sm font-medium text-slate-700"
+                        >
+                          Confirm date
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {tab === "monthly" && (
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -538,11 +658,11 @@ export default function Page() {
         )}
 
         {tab === "summary" && (
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ReadCard label="Checking per paycheck" value={currency(checkingPerCheck)} />
+            <ReadCard label="Next paycheck planned" value={currency(nextPaycheckTotal)} />
             <ReadCard label="Checking after planned" value={currency(checkingAfterPlanned)} />
             <ReadCard label="Credit Builder monthly" value={currency(cbMonthly)} />
-            <ReadCard label="Credit Builder funding" value={currency(cbFunding)} />
             <ReadCard label="Credit Builder buffer" value={currency(cbBuffer)} />
           </section>
         )}
@@ -584,7 +704,7 @@ function MonthlyBillCard({
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 text-base leading-relaxed sm:text-lg">
-          <span className="font-medium">{bill.name}:</span>
+          <span className="font-medium">{statusDot(bill.status)} {bill.name}:</span>
           <span className="mx-2">{currency(bill.amount)}</span>
           <span className="mx-2">→</span>
           <span>
