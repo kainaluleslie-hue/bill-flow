@@ -160,6 +160,7 @@ function todayString() {
 }
 
 export default function Page() {
+  const [isLoaded, setIsLoaded] = useState(false);
   const [paycheckNet, setPaycheckNet] = useState(1367.15);
   const [creditBuilderSplit, setCreditBuilderSplit] = useState(238);
   const [snapAmount, setSnapAmount] = useState(1300);
@@ -177,6 +178,44 @@ export default function Page() {
     status: "planned",
     lastPaid: "",
   });
+
+  React.useEffect(() => {
+    try {
+      const savedBills = window.localStorage.getItem("billflow_bills");
+      const savedPaycheckNet = window.localStorage.getItem("billflow_paycheckNet");
+      const savedCreditBuilderSplit = window.localStorage.getItem("billflow_creditBuilderSplit");
+      const savedSnapAmount = window.localStorage.getItem("billflow_snapAmount");
+
+      if (savedBills) setBills(JSON.parse(savedBills));
+      if (savedPaycheckNet) setPaycheckNet(Number(savedPaycheckNet));
+      if (savedCreditBuilderSplit) setCreditBuilderSplit(Number(savedCreditBuilderSplit));
+      if (savedSnapAmount) setSnapAmount(Number(savedSnapAmount));
+    } catch (error) {
+      console.error("Failed to load Bill Flow data from localStorage", error);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!isLoaded) return;
+    window.localStorage.setItem("billflow_bills", JSON.stringify(bills));
+  }, [bills, isLoaded]);
+
+  React.useEffect(() => {
+    if (!isLoaded) return;
+    window.localStorage.setItem("billflow_paycheckNet", String(paycheckNet));
+  }, [paycheckNet, isLoaded]);
+
+  React.useEffect(() => {
+    if (!isLoaded) return;
+    window.localStorage.setItem("billflow_creditBuilderSplit", String(creditBuilderSplit));
+  }, [creditBuilderSplit, isLoaded]);
+
+  React.useEffect(() => {
+    if (!isLoaded) return;
+    window.localStorage.setItem("billflow_snapAmount", String(snapAmount));
+  }, [snapAmount, isLoaded]);
 
   const checkingDeposit = useMemo(
     () => round2(paycheckNet - creditBuilderSplit),
@@ -229,6 +268,7 @@ export default function Page() {
         if (status === "paid_half") lastPaid = `Paid half ${todayString()}`;
         if (status === "paid_full") lastPaid = `Paid full ${todayString()}`;
         if (status === "skip") lastPaid = `Skipped ${todayString()}`;
+        if (status === "planned") lastPaid = bill.lastPaid;
         return { ...bill, status, lastPaid };
       })
     );
@@ -236,7 +276,7 @@ export default function Page() {
 
   function addBill() {
     if (!newBill.name.trim()) return;
-    const id = newBill.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const id = `${newBill.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
     setBills((current) => [
       ...current,
       {
@@ -264,14 +304,53 @@ export default function Page() {
     setBills((current) => current.filter((bill) => bill.id !== id));
   }
 
+  function resetAllData() {
+    const confirmed = window.confirm("Reset all Bill Flow data on this device?");
+    if (!confirmed) return;
+
+    window.localStorage.removeItem("billflow_bills");
+    window.localStorage.removeItem("billflow_paycheckNet");
+    window.localStorage.removeItem("billflow_creditBuilderSplit");
+    window.localStorage.removeItem("billflow_snapAmount");
+
+    setBills(starterBills);
+    setPaycheckNet(1367.15);
+    setCreditBuilderSplit(238);
+    setSnapAmount(1300);
+    setTab("dashboard");
+  }
+
+  if (!isLoaded) {
+    return (
+      <main className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="mx-auto max-w-7xl p-4 md:p-8">
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h1 className="text-3xl font-bold">Bill Flow</h1>
+            <p className="mt-2 text-sm text-slate-600">Loading your saved data…</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl p-4 md:p-8">
         <div className="mb-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h1 className="text-3xl font-bold">Bill Flow</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Paycheck planning first, bill tracking second. Edit amounts anytime and check off paid half or full.
-          </p>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Bill Flow</h1>
+              <p className="mt-2 text-sm text-slate-600">
+                Paycheck planning first, bill tracking second. Changes now save on this device.
+              </p>
+            </div>
+            <button
+              onClick={resetAllData}
+              className="rounded-2xl border border-red-300 px-4 py-2 text-sm font-medium text-red-700"
+            >
+              Reset device data
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-4">
@@ -345,7 +424,9 @@ export default function Page() {
           <div className="mt-6 space-y-6">
             <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <h2 className="text-xl font-semibold">What to pay this paycheck</h2>
-              <p className="mt-1 text-sm text-slate-500">Edit amounts directly here. Check off paid half, paid full, or skip.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Edit amounts directly here. Check off paid half, paid full, or skip.
+              </p>
               <div className="mt-4 space-y-4">
                 {bills.map((bill) => (
                   <EditableBillRow
